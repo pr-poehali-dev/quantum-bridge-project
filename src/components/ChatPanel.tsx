@@ -1,73 +1,50 @@
-import type React from "react"
 import { useState, useEffect, useRef } from "react"
+import type { FormEvent } from "react"
 import { useUIStore } from "@/lib/ui-store"
-import { Button } from "@/components/ui/button"
 
+const CHAT_URL = "https://functions.poehali.dev/82f30671-d720-4891-bade-7842b458b8c1"
 const QUICK_CHIPS = ["Кто ты?", "Покажи работы", "Чем занимаешься?"]
-
-const RESPONSES: Record<string, string> = {
-  "Кто ты?": "Я цифровой двойник. Не настоящий ИИ, но знаю о хозяине всё. Хочешь узнать больше — просто спроси!",
-  "Покажи работы": "Загружаю галерею... там есть кое-что интересное 👾",
-  "Чем занимаешься?": "Разрабатываю крутые штуки. Код, дизайн, идеи — всё в деле. Загляни в резюме!",
-}
-
-const ACTION_RESPONSES: Record<string, { response: string; action: string }> = {
-  "открой арт": { response: "⚡ Запускаю галерею...", action: "art" },
-  "покажи арт": { response: "⚡ Открываю арт-раздел!", action: "art" },
-  "покажи работы": { response: "⚡ Загружаю работы...", action: "art" },
-  "открой резюме": { response: "📄 Открываю резюме...", action: "resume" },
-  "покажи резюме": { response: "📄 Вот моё резюме!", action: "resume" },
-  "открой обо мне": { response: "🧬 Загружаю данные...", action: "about" },
-  "покажи обо мне": { response: "🧬 Рассказываю о себе!", action: "about" },
-  "открой статьи": { response: "✍️ Открываю статьи...", action: "writings" },
-  "покажи статьи": { response: "✍️ Вот статьи!", action: "writings" },
-}
 
 type AppType = "about" | "resume" | "writings" | "art"
 
 export function ChatPanel() {
   const [messages, setMessages] = useState<Array<{ text: string; isUser: boolean }>>([])
   const [inputValue, setInputValue] = useState("")
-  const [isTyping, setIsTyping] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const { openOS } = useUIStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  }, [messages, isLoading])
 
-  const addBotMessage = (text: string, delay = 600) => {
-    setIsTyping(true)
-    setTimeout(() => {
-      setIsTyping(false)
-      setMessages((prev) => [...prev, { text, isUser: false }])
-    }, delay)
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return
+    setMessages((prev) => [...prev, { text, isUser: true }])
+    setIsLoading(true)
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      })
+      const data = await res.json()
+      setMessages((prev) => [...prev, { text: data.reply, isUser: false }])
+      if (data.action) setTimeout(() => openOS(data.action as AppType), 1000)
+    } catch {
+      setMessages((prev) => [...prev, { text: "Упс, что-то пошло не так. Попробуй ещё раз 🛸", isUser: false }])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleChipClick = (chip: string) => {
-    const response = RESPONSES[chip] || "Интересный вопрос! Дай подумать..."
-    setMessages((prev) => [...prev, { text: chip, isUser: true }])
-    addBotMessage(response)
-  }
+  const handleChipClick = (chip: string) => sendMessage(chip)
 
-  const handleInputSubmit = (e: React.FormEvent) => {
+  const handleInputSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!inputValue.trim()) return
-
-    const userMessage = inputValue.trim()
+    sendMessage(inputValue.trim())
     setInputValue("")
-    setMessages((prev) => [...prev, { text: userMessage, isUser: true }])
-
-    const lowerMessage = userMessage.toLowerCase()
-    const actionMatch = Object.keys(ACTION_RESPONSES).find((key) => lowerMessage.includes(key))
-
-    if (actionMatch) {
-      const { response, action } = ACTION_RESPONSES[actionMatch]
-      addBotMessage(response)
-      setTimeout(() => { openOS(action as AppType) }, 1500)
-    } else {
-      addBotMessage("Понял! Попробуй написать «покажи работы», «открой резюме» или «обо мне» — покажу всё интересное 🚀")
-    }
   }
 
   return (
@@ -98,7 +75,7 @@ export function ChatPanel() {
             </div>
           </div>
         ))}
-        {isTyping && (
+        {isLoading && (
           <div className="flex justify-start">
             <div className="px-4 py-3 rounded-2xl rounded-tl-sm" style={{ background: 'var(--bg-card2)', border: '1px solid rgba(168,85,247,0.3)' }}>
               <div className="flex gap-1 items-center">
@@ -120,12 +97,14 @@ export function ChatPanel() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Напиши сообщение..."
-            className="flex-1 px-4 py-3 rounded-xl text-sm font-medium text-white placeholder-gray-500 focus:outline-none focus:ring-1 transition-all"
-            style={{ background: 'var(--bg-card2)', border: '1px solid rgba(168,85,247,0.3)', focusRingColor: 'var(--neon-purple)' } as React.CSSProperties}
+            disabled={isLoading}
+            className="flex-1 px-4 py-3 rounded-xl text-sm font-medium text-white placeholder-gray-600 focus:outline-none transition-all disabled:opacity-50"
+            style={{ background: 'var(--bg-card2)', border: '1px solid rgba(168,85,247,0.3)' }}
           />
           <button
             type="submit"
-            className="px-4 py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 active:scale-95"
+            disabled={isLoading || !inputValue.trim()}
+            className="px-4 py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: 'linear-gradient(135deg, #a855f7, #4361ee)', boxShadow: '0 0 20px rgba(168,85,247,0.3)' }}
           >
             ↗
@@ -139,7 +118,8 @@ export function ChatPanel() {
           <button
             key={chip}
             onClick={() => handleChipClick(chip)}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105 active:scale-95"
+            disabled={isLoading}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
             style={{ background: 'rgba(168,85,247,0.12)', color: '#c4b5fd', border: '1px solid rgba(168,85,247,0.3)' }}
           >
             {chip}

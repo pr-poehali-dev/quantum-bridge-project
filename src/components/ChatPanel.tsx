@@ -3,25 +3,24 @@ import { useState, useEffect, useRef } from "react"
 import { useUIStore } from "@/lib/ui-store"
 import { Button } from "@/components/ui/button"
 
-const QUICK_CHIPS = ["Кто ты?", "Покажи арт", "Над чем работаешь?"]
+const QUICK_CHIPS = ["Кто ты?", "Покажи работы", "Чем занимаешься?"]
 
 const RESPONSES: Record<string, string> = {
-  "Кто ты?": "Я AI-помощник Алекса! Помогаю показать работы и рассказать о нем. Хочешь узнать больше?",
-  "Покажи арт":
-    "С удовольствием покажу работы Алекса! В них сочетаются цифровые и традиционные техники.",
-  "Над чем работаешь?":
-    "Сейчас в работе несколько проектов! Алекс занимается AI-приложениями и креативным кодингом.",
+  "Кто ты?": "Я цифровой двойник. Не настоящий ИИ, но знаю о хозяине всё. Хочешь узнать больше — просто спроси!",
+  "Покажи работы": "Загружаю галерею... там есть кое-что интересное 👾",
+  "Чем занимаешься?": "Разрабатываю крутые штуки. Код, дизайн, идеи — всё в деле. Загляни в резюме!",
 }
 
 const ACTION_RESPONSES: Record<string, { response: string; action: string }> = {
-  "открой арт": { response: "Открываю галерею!", action: "art" },
-  "покажи арт": { response: "Открываю раздел с артом!", action: "art" },
-  "открой резюме": { response: "Открываю резюме!", action: "resume" },
-  "покажи резюме": { response: "Вот резюме!", action: "resume" },
-  "открой обо мне": { response: "Открываю раздел обо мне!", action: "about" },
-  "покажи обо мне": { response: "Расскажу об Алексе!", action: "about" },
-  "открой статьи": { response: "Открываю статьи!", action: "writings" },
-  "покажи статьи": { response: "Вот статьи!", action: "writings" },
+  "открой арт": { response: "⚡ Запускаю галерею...", action: "art" },
+  "покажи арт": { response: "⚡ Открываю арт-раздел!", action: "art" },
+  "покажи работы": { response: "⚡ Загружаю работы...", action: "art" },
+  "открой резюме": { response: "📄 Открываю резюме...", action: "resume" },
+  "покажи резюме": { response: "📄 Вот моё резюме!", action: "resume" },
+  "открой обо мне": { response: "🧬 Загружаю данные...", action: "about" },
+  "покажи обо мне": { response: "🧬 Рассказываю о себе!", action: "about" },
+  "открой статьи": { response: "✍️ Открываю статьи...", action: "writings" },
+  "покажи статьи": { response: "✍️ Вот статьи!", action: "writings" },
 }
 
 type AppType = "about" | "resume" | "writings" | "art"
@@ -29,6 +28,7 @@ type AppType = "about" | "resume" | "writings" | "art"
 export function ChatPanel() {
   const [messages, setMessages] = useState<Array<{ text: string; isUser: boolean }>>([])
   const [inputValue, setInputValue] = useState("")
+  const [isTyping, setIsTyping] = useState(false)
   const { openOS } = useUIStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -36,9 +36,18 @@ export function ChatPanel() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  const addBotMessage = (text: string, delay = 600) => {
+    setIsTyping(true)
+    setTimeout(() => {
+      setIsTyping(false)
+      setMessages((prev) => [...prev, { text, isUser: false }])
+    }, delay)
+  }
+
   const handleChipClick = (chip: string) => {
     const response = RESPONSES[chip] || "Интересный вопрос! Дай подумать..."
-    setMessages((prev) => [...prev, { text: chip, isUser: true }, { text: response, isUser: false }])
+    setMessages((prev) => [...prev, { text: chip, isUser: true }])
+    addBotMessage(response)
   }
 
   const handleInputSubmit = (e: React.FormEvent) => {
@@ -47,71 +56,94 @@ export function ChatPanel() {
 
     const userMessage = inputValue.trim()
     setInputValue("")
+    setMessages((prev) => [...prev, { text: userMessage, isUser: true }])
 
-    // Check if it's an action command
     const lowerMessage = userMessage.toLowerCase()
     const actionMatch = Object.keys(ACTION_RESPONSES).find((key) => lowerMessage.includes(key))
 
     if (actionMatch) {
       const { response, action } = ACTION_RESPONSES[actionMatch]
-      setMessages((prev) => [...prev, { text: userMessage, isUser: true }, { text: response, isUser: false }])
-
-      setTimeout(() => {
-        openOS(action as AppType)
-      }, 1000)
+      addBotMessage(response)
+      setTimeout(() => { openOS(action as AppType) }, 1500)
     } else {
-      // Default response for non-action messages
-      const defaultResponse =
-        "Интересно! Я помогу изучить работы Алекса. Попробуй написать «открой арт» или «покажи резюме»!"
-      setMessages((prev) => [...prev, { text: userMessage, isUser: true }, { text: defaultResponse, isUser: false }])
+      addBotMessage("Понял! Попробуй написать «покажи работы», «открой резюме» или «обо мне» — покажу всё интересное 🚀")
     }
   }
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="mb-6 space-y-3 h-32 overflow-y-auto scroll-smooth">
+      {/* Messages */}
+      <div className="mb-4 space-y-2 h-36 overflow-y-auto scroll-smooth px-1">
+        {messages.length === 0 && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm font-medium" style={{ background: 'var(--bg-card2)', color: '#c4b5fd', border: '1px solid rgba(168,85,247,0.3)' }}>
+              Привет! Я здесь чтобы рассказать о моём хозяине. Спроси что-нибудь ↓
+            </div>
+          </div>
+        )}
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.isUser ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[80%] p-3 border-[3px] border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
-                msg.isUser ? "bg-[#FF2E63] text-white" : "bg-white text-black"
+              className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm font-medium ${
+                msg.isUser
+                  ? "rounded-br-sm text-white"
+                  : "rounded-tl-sm"
               }`}
+              style={msg.isUser
+                ? { background: 'linear-gradient(135deg, #a855f7, #4361ee)', boxShadow: '0 0 15px rgba(168,85,247,0.3)' }
+                : { background: 'var(--bg-card2)', color: '#c4b5fd', border: '1px solid rgba(168,85,247,0.3)' }
+              }
             >
-              <p className="text-sm font-medium leading-tight">{msg.text}</p>
+              {msg.text}
             </div>
           </div>
         ))}
+        {isTyping && (
+          <div className="flex justify-start">
+            <div className="px-4 py-3 rounded-2xl rounded-tl-sm" style={{ background: 'var(--bg-card2)', border: '1px solid rgba(168,85,247,0.3)' }}>
+              <div className="flex gap-1 items-center">
+                <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--neon-purple)', animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--neon-purple)', animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--neon-purple)', animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleInputSubmit} className="mb-4">
+      {/* Input */}
+      <form onSubmit={handleInputSubmit} className="mb-3">
         <div className="flex gap-2">
           <input
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Напиши сообщение или команду..."
-            className="flex-1 p-3 border-[3px] border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] bg-white text-black font-medium text-sm focus:outline-none focus:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] focus:translate-x-[1px] focus:translate-y-[1px] transition-all"
+            placeholder="Напиши сообщение..."
+            className="flex-1 px-4 py-3 rounded-xl text-sm font-medium text-white placeholder-gray-500 focus:outline-none focus:ring-1 transition-all"
+            style={{ background: 'var(--bg-card2)', border: '1px solid rgba(168,85,247,0.3)', focusRingColor: 'var(--neon-purple)' } as React.CSSProperties}
           />
-          <Button
+          <button
             type="submit"
-            className="bg-[#FF2E63] text-white border-[3px] border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-bold px-4"
+            className="px-4 py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 active:scale-95"
+            style={{ background: 'linear-gradient(135deg, #a855f7, #4361ee)', boxShadow: '0 0 20px rgba(168,85,247,0.3)' }}
           >
-            Отправить
-          </Button>
+            ↗
+          </button>
         </div>
       </form>
 
-      {/* Quick Action Chips */}
+      {/* Quick Chips */}
       <div className="flex flex-wrap gap-2 justify-center">
         {QUICK_CHIPS.map((chip) => (
-          <Button
+          <button
             key={chip}
             onClick={() => handleChipClick(chip)}
-            className="bg-white text-black border-[3px] border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-bold text-xs px-3 py-2 h-auto"
+            className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105 active:scale-95"
+            style={{ background: 'rgba(168,85,247,0.12)', color: '#c4b5fd', border: '1px solid rgba(168,85,247,0.3)' }}
           >
             {chip}
-          </Button>
+          </button>
         ))}
       </div>
     </div>
